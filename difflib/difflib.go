@@ -21,7 +21,11 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/fatih/color"
 )
+
+var colorBoldString = color.New(color.Bold).SprintfFunc()
 
 func min(a, b int) int {
 	if a < b {
@@ -535,6 +539,7 @@ type UnifiedDiff struct {
 	ToDate   string   // Second file time
 	Eol      string   // Headers end of line, defaults to LF
 	Context  int      // Number of context lines
+	Color    bool     // Colored diff
 }
 
 // Compare two sequences of lines; generate the delta as a unified diff.
@@ -559,11 +564,13 @@ type UnifiedDiff struct {
 func WriteUnifiedDiff(writer io.Writer, diff UnifiedDiff) error {
 	buf := bufio.NewWriter(writer)
 	defer buf.Flush()
-	wf := func(format string, args ...interface{}) error {
-		_, err := buf.WriteString(fmt.Sprintf(format, args...))
-		return err
-	}
-	ws := func(s string) error {
+
+	wf := func(f func(string, ...interface{}) string, format string, args ...interface{}) error {
+		s := fmt.Sprintf(format, args...)
+		if f != nil && diff.Color {
+			s = f(s)
+		}
+
 		_, err := buf.WriteString(s)
 		return err
 	}
@@ -586,11 +593,11 @@ func WriteUnifiedDiff(writer io.Writer, diff UnifiedDiff) error {
 				toDate = "\t" + diff.ToDate
 			}
 			if diff.FromFile != "" || diff.ToFile != "" {
-				err := wf("--- %s%s%s", diff.FromFile, fromDate, diff.Eol)
+				err := wf(colorBoldString, "--- %s%s%s", diff.FromFile, fromDate, diff.Eol)
 				if err != nil {
 					return err
 				}
-				err = wf("+++ %s%s%s", diff.ToFile, toDate, diff.Eol)
+				err = wf(colorBoldString, "+++ %s%s%s", diff.ToFile, toDate, diff.Eol)
 				if err != nil {
 					return err
 				}
@@ -599,14 +606,14 @@ func WriteUnifiedDiff(writer io.Writer, diff UnifiedDiff) error {
 		first, last := g[0], g[len(g)-1]
 		range1 := formatRangeUnified(first.I1, last.I2)
 		range2 := formatRangeUnified(first.J1, last.J2)
-		if err := wf("@@ -%s +%s @@%s", range1, range2, diff.Eol); err != nil {
+		if err := wf(color.CyanString, "@@ -%s +%s @@%s", range1, range2, diff.Eol); err != nil {
 			return err
 		}
 		for _, c := range g {
 			i1, i2, j1, j2 := c.I1, c.I2, c.J1, c.J2
 			if c.Tag == 'e' {
 				for _, line := range diff.A[i1:i2] {
-					if err := ws(" " + line); err != nil {
+					if err := wf(nil, " %s", line); err != nil {
 						return err
 					}
 				}
@@ -614,14 +621,14 @@ func WriteUnifiedDiff(writer io.Writer, diff UnifiedDiff) error {
 			}
 			if c.Tag == 'r' || c.Tag == 'd' {
 				for _, line := range diff.A[i1:i2] {
-					if err := ws("-" + line); err != nil {
+					if err := wf(color.RedString, "-%s", line); err != nil {
 						return err
 					}
 				}
 			}
 			if c.Tag == 'r' || c.Tag == 'i' {
 				for _, line := range diff.B[j1:j2] {
-					if err := ws("+" + line); err != nil {
+					if err := wf(color.GreenString, "+%s", line); err != nil {
 						return err
 					}
 				}
@@ -675,13 +682,13 @@ func WriteContextDiff(writer io.Writer, diff ContextDiff) error {
 	buf := bufio.NewWriter(writer)
 	defer buf.Flush()
 	var diffErr error
-	wf := func(format string, args ...interface{}) {
-		_, err := buf.WriteString(fmt.Sprintf(format, args...))
-		if diffErr == nil && err != nil {
-			diffErr = err
+
+	wf := func(f func(string, ...interface{}) string, format string, args ...interface{}) {
+		s := fmt.Sprintf(format, args...)
+		if f != nil && diff.Color {
+			s = f(s)
 		}
-	}
-	ws := func(s string) {
+
 		_, err := buf.WriteString(s)
 		if diffErr == nil && err != nil {
 			diffErr = err
@@ -693,10 +700,23 @@ func WriteContextDiff(writer io.Writer, diff ContextDiff) error {
 	}
 
 	prefix := map[byte]string{
-		'i': "+ ",
-		'd': "- ",
-		'r': "! ",
-		'e': "  ",
+		'i': "+",
+		'd': "-",
+		'r': "!",
+		'e': " ",
+	}
+
+	colorFunc := func(t byte, r func(string, ...interface{}) string) func(string, ...interface{}) string {
+		switch t {
+		case 'i':
+			return color.GreenString
+		case 'd':
+			return color.RedString
+		case 'r':
+			return r
+		}
+
+		return nil
 	}
 
 	started := false
@@ -713,16 +733,16 @@ func WriteContextDiff(writer io.Writer, diff ContextDiff) error {
 				toDate = "\t" + diff.ToDate
 			}
 			if diff.FromFile != "" || diff.ToFile != "" {
-				wf("*** %s%s%s", diff.FromFile, fromDate, diff.Eol)
-				wf("--- %s%s%s", diff.ToFile, toDate, diff.Eol)
+				wf(colorBoldString, "*** %s%s%s", diff.FromFile, fromDate, diff.Eol)
+				wf(colorBoldString, "--- %s%s%s", diff.ToFile, toDate, diff.Eol)
 			}
 		}
 
 		first, last := g[0], g[len(g)-1]
-		ws("***************" + diff.Eol)
+		wf(color.CyanString, "***************%s", diff.Eol)
 
 		range1 := formatRangeContext(first.I1, last.I2)
-		wf("*** %s ****%s", range1, diff.Eol)
+		wf(color.CyanString, "*** %s ****%s", range1, diff.Eol)
 		for _, c := range g {
 			if c.Tag == 'r' || c.Tag == 'd' {
 				for _, cc := range g {
@@ -730,7 +750,7 @@ func WriteContextDiff(writer io.Writer, diff ContextDiff) error {
 						continue
 					}
 					for _, line := range diff.A[cc.I1:cc.I2] {
-						ws(prefix[cc.Tag] + line)
+						wf(colorFunc(cc.Tag, color.RedString), "%s %s", prefix[cc.Tag], line)
 					}
 				}
 				break
@@ -738,7 +758,7 @@ func WriteContextDiff(writer io.Writer, diff ContextDiff) error {
 		}
 
 		range2 := formatRangeContext(first.J1, last.J2)
-		wf("--- %s ----%s", range2, diff.Eol)
+		wf(color.CyanString, "--- %s ----%s", range2, diff.Eol)
 		for _, c := range g {
 			if c.Tag == 'r' || c.Tag == 'i' {
 				for _, cc := range g {
@@ -746,7 +766,7 @@ func WriteContextDiff(writer io.Writer, diff ContextDiff) error {
 						continue
 					}
 					for _, line := range diff.B[cc.J1:cc.J2] {
-						ws(prefix[cc.Tag] + line)
+						wf(colorFunc(cc.Tag, color.GreenString), "%s %s", prefix[cc.Tag], line)
 					}
 				}
 				break

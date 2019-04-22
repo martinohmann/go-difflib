@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/fatih/color"
 )
 
 func assertAlmostEqual(t *testing.T, a, b float64, places int) {
@@ -135,6 +137,44 @@ four`
 	// -fmt.Printf("%s,%T",a,b)
 }
 
+func TestGetUnifiedDiffCodeColored(t *testing.T) {
+	a := `one
+two
+three
+four
+fmt.Printf("%s,%T",a,b)`
+	b := `zero
+one
+three
+four`
+	diff := UnifiedDiff{
+		A:        SplitLines(a),
+		B:        SplitLines(b),
+		FromFile: "Original",
+		FromDate: "2005-01-26 23:30:50",
+		ToFile:   "Current",
+		ToDate:   "2010-04-02 10:20:52",
+		Context:  3,
+		Color:    true,
+	}
+
+	expected := colorBoldString("--- Original\t2005-01-26 23:30:50\n") +
+		colorBoldString("+++ Current\t2010-04-02 10:20:52\n") +
+		color.CyanString("@@ -1,5 +1,4 @@\n") +
+		color.GreenString("+zero\n") +
+		" one\n" +
+		color.RedString("-two\n") +
+		" three\n" +
+		" four\n" +
+		color.RedString(`-fmt.Printf("%s,%T",a,b)`+"\n")
+
+	result, _ := GetUnifiedDiffString(diff)
+
+	if result != expected {
+		t.Fatalf("expected:\n%s\ngot:\n%s", expected, result)
+	}
+}
+
 func ExampleGetContextDiffCode() {
 	a := `one
 two
@@ -205,6 +245,46 @@ four`
 	//   one
 	// ! tree
 	//   four
+}
+
+func TestGetContextDiffStringColored(t *testing.T) {
+	a := `one
+two
+three
+four`
+	b := `zero
+one
+tree
+four`
+	diff := ContextDiff{
+		A:        SplitLines(a),
+		B:        SplitLines(b),
+		FromFile: "Original",
+		ToFile:   "Current",
+		Context:  3,
+		Eol:      "\n",
+		Color:    true,
+	}
+
+	expected := colorBoldString("*** Original\n") +
+		colorBoldString("--- Current\n") +
+		color.CyanString("***************\n") +
+		color.CyanString("*** 1,4 ****\n") +
+		"  one\n" +
+		color.RedString("! two\n") +
+		color.RedString("! three\n") +
+		"  four\n" +
+		color.CyanString("--- 1,4 ----\n") +
+		color.GreenString("+ zero\n") +
+		"  one\n" +
+		color.GreenString("! tree\n") +
+		"  four\n"
+
+	result, _ := GetContextDiffString(diff)
+
+	if result != expected {
+		t.Fatalf("expected:\n%s\ngot:\n%s", expected, result)
+	}
 }
 
 func rep(s string, count int) string {

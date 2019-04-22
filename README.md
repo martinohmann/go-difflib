@@ -1,11 +1,12 @@
 go-difflib
 ==========
 
-THIS PACKAGE IS NO LONGER MAINTAINED.
+[![GoDoc](https://godoc.org/github.com/martinohmann/go-difflib?status.svg)](https://godoc.org/github.com/martinohmann/go-difflib)
 
-At this point, I have no longer the time nor the interest to work on go-difflib. I apologize for the inconvenience.
-
-[![GoDoc](https://godoc.org/github.com/pmezard/go-difflib/difflib?status.svg)](https://godoc.org/github.com/pmezard/go-difflib/difflib)
+This is a fork of [go-difflib](https://github.com/pmezard/go-difflib) by
+Patrick Mezard with added support for colored diffs and go modules. It can be
+used as a drop-in replacement for the original implementation which is not
+maintained anymore.
 
 Go-difflib is a partial port of python 3 difflib package. Its main goal
 was to make unified and context diff available in pure Go, mostly for
@@ -20,7 +21,7 @@ The following class and functions (and related tests) have be ported:
 ## Installation
 
 ```bash
-$ go get github.com/pmezard/go-difflib/difflib
+$ go get github.com/martinohmann/go-difflib/difflib
 ```
 
 ### Quick Start
@@ -51,3 +52,22 @@ would output:
 +baz
 ```
 
+### Color support
+
+Colored diffs can be enabled by setting the `Color` struct field of the
+`UnifiedDiff` (or `ContextDiff`) structs to `true`.
+
+```Go
+diff := difflib.UnifiedDiff{
+    A:        difflib.SplitLines("foo\nbar\n"),
+    B:        difflib.SplitLines("foo\nbaz\n"),
+    FromFile: "Original",
+    ToFile:   "Current",
+    Context:  3,
+    Color:    true,
+}
+
+// writes a colored diff
+text, _ := difflib.GetUnifiedDiffString(diff)
+fmt.Printf(text)
+```
