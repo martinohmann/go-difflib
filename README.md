@@ -1,6 +1,7 @@
 go-difflib
 ==========
 
+[![Build Status](https://travis-ci.org/martinohmann/go-difflib.svg?branch=master)](https://travis-ci.org/martinohmann/go-difflib)
 [![GoDoc](https://godoc.org/github.com/martinohmann/go-difflib?status.svg)](https://godoc.org/github.com/martinohmann/go-difflib)
 
 This is a fork of [go-difflib](https://github.com/pmezard/go-difflib) by
